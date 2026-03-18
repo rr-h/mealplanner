@@ -50,6 +50,30 @@
             <!-- Days will be injected here by JavaScript -->
         </div>
 
+        <!-- Shopping List CTA -->
+        <div id="shoppingListCta" class="hidden mt-6 text-center">
+            <button onclick="buildShoppingList()" class="bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 duration-300">
+                🛒 Create Shopping List
+            </button>
+        </div>
+
+        <!-- Shopping List Output -->
+        <div id="shoppingListSection" class="hidden mt-10 bg-white rounded-2xl shadow-md border border-green-100 p-8">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-2xl font-extrabold text-gray-800">🛒 Weekly Shopping List</h2>
+                <button id="copyBtn" onclick="copyShoppingList()" class="flex items-center gap-2 bg-green-100 hover:bg-green-200 active:scale-95 text-green-800 font-semibold text-sm px-4 py-2 rounded-full transition-all duration-150">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Copy to clipboard
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Ingredients grouped by day — copy and paste into any notes app.</p>
+            <textarea id="shoppingListOutput"
+                class="w-full h-96 font-mono text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-xl p-4 resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
+                readonly
+                spellcheck="false"
+            ></textarea>
+        </div>
+
     </main>
 
     <script>
@@ -196,6 +220,75 @@
             });
 
             mealPlanContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Show the shopping list CTA and reset the list section
+            document.getElementById('shoppingListCta').classList.remove('hidden');
+            document.getElementById('shoppingListSection').classList.add('hidden');
+            document.getElementById('shoppingListOutput').value = '';
+        }
+
+        // Build the markdown shopping list from currentPlan
+        function buildShoppingList() {
+            if (currentPlan.length === 0) return;
+
+            const lines = [];
+            lines.push('# 🛒 Weekly Shopping List\n');
+
+            currentPlan.forEach((recipe, index) => {
+                const day = weekdays[index];
+                lines.push(`## ${day}: ${recipe.title}\n`);
+
+                const rawIngredients = recipe.ingredients
+                    ? recipe.ingredients.replace(/^"|"$/g, '').trim()
+                    : '';
+
+                if (rawIngredients) {
+                    // Split on newlines, filter blank lines, output as tickbox items
+                    const items = rawIngredients
+                        .split('\n')
+                        .map(l => l.trim())
+                        .filter(l => l.length > 0);
+
+                    items.forEach(item => lines.push(`- [ ] ${item}`));
+                } else {
+                    lines.push('- [ ] (no ingredients listed)');
+                }
+
+                lines.push(''); // blank line between days
+            });
+
+            const markdown = lines.join('\n');
+            const output = document.getElementById('shoppingListOutput');
+            output.value = markdown;
+
+            const section = document.getElementById('shoppingListSection');
+            section.classList.remove('hidden');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Copy the shopping list textarea to clipboard
+        async function copyShoppingList() {
+            const output = document.getElementById('shoppingListOutput');
+            const btn = document.getElementById('copyBtn');
+            try {
+                await navigator.clipboard.writeText(output.value);
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Copied!
+                `;
+                btn.classList.add('bg-green-300');
+                setTimeout(() => {
+                    btn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        Copy to clipboard
+                    `;
+                    btn.classList.remove('bg-green-300');
+                }, 2000);
+            } catch {
+                // Fallback for older browsers
+                output.select();
+                document.execCommand('copy');
+            }
         }
     </script>
 </body>
