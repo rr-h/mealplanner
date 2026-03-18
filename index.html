@@ -59,27 +59,22 @@
         const recipeCountText = document.getElementById('recipeCount');
 
         let recipesData = [];
-        
-        // Updated to 7 days
+        // Tracks the current 7-day plan so per-day swaps know which recipes are already in use
+        let currentPlan = [];
+
         const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-        // Automatically fetch the CSV file from the server when the page loads
+        // Load CSV on page load
         window.addEventListener('DOMContentLoaded', () => {
-            // PapaParse can download the file directly via URL
             Papa.parse("vegan_recipes.csv", {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    // Filter out empty rows
                     recipesData = results.data.filter(row => row.title && row.title.trim() !== "");
-                    
                     if (recipesData.length >= 7) {
-                        // Hide loading spinner, show button
                         loadingState.classList.add('hidden');
                         generateBtn.classList.remove('hidden');
-                        
-                        // Show how many recipes were loaded
                         recipeCountText.textContent = `Successfully loaded ${recipesData.length} recipes.`;
                         recipeCountText.classList.remove('hidden');
                     } else {
@@ -93,68 +88,113 @@
             });
         });
 
-        // Handle Generate Button Click
-        generateBtn.addEventListener('click', () => {
-            // 1. Shuffle the recipes array (Fisher-Yates shuffle for true randomness)
-            let shuffled = [...recipesData];
-            for (let i = shuffled.length - 1; i > 0; i--) {
+        // Fisher-Yates shuffle helper
+        function shuffle(arr) {
+            const a = [...arr];
+            for (let i = a.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                [a[i], a[j]] = [a[j], a[i]];
             }
+            return a;
+        }
 
-            // 2. Pick the first 7 recipes
-            const selectedRecipes = shuffled.slice(0, 7);
-            renderMealPlan(selectedRecipes);
+        // Generate a fresh 7-day plan
+        generateBtn.addEventListener('click', () => {
+            currentPlan = shuffle(recipesData).slice(0, 7);
+            renderMealPlan(currentPlan);
         });
 
-        // Render the UI
+        // Swap only one day's recipe, avoiding duplicates already in the plan
+        function randomizeDay(dayIndex) {
+            const usedTitles = new Set(currentPlan.map(r => r.title));
+            // Remove today's current recipe from the exclusion set so it can be re-picked if pool is tiny
+            usedTitles.delete(currentPlan[dayIndex].title);
+
+            const pool = recipesData.filter(r => !usedTitles.has(r.title));
+            if (pool.length === 0) return; // Shouldn't happen with a large CSV
+
+            const newRecipe = pool[Math.floor(Math.random() * pool.length)];
+            currentPlan[dayIndex] = newRecipe;
+
+            // Animate the card out, swap content, animate back in
+            const card = document.getElementById(`day-card-${dayIndex}`);
+            card.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(-8px)';
+
+            setTimeout(() => {
+                renderDayCard(dayIndex, newRecipe, card);
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 250);
+        }
+
+        // Build the inner HTML for a single day card
+        function buildCardInner(dayIndex, recipe) {
+            const day = weekdays[dayIndex];
+            const cleanIngredients = recipe.ingredients ? recipe.ingredients.replace(/^"|"$/g, '').trim() : "No ingredients listed.";
+            const cleanPrep = recipe.preparation ? recipe.preparation.replace(/^"|"$/g, '').trim() : "No preparation listed.";
+            const isWeekend = (day === 'Saturday' || day === 'Sunday');
+            const dayTextClass = isWeekend ? 'text-yellow-600' : 'text-green-600';
+
+            return `
+                <div class="p-6 w-full">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="uppercase tracking-wider text-sm ${dayTextClass} font-extrabold">${day}</div>
+                        <button
+                            onclick="randomizeDay(${dayIndex})"
+                            title="Randomize ${day}"
+                            class="flex items-center gap-1.5 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 active:scale-95 px-3 py-1.5 rounded-full shadow transition-all duration-150"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            New suggestion
+                        </button>
+                    </div>
+                    <a href="${recipe.href}" target="_blank" class="block mt-1 text-2xl leading-tight font-bold text-gray-900 hover:text-green-600 transition-colors duration-200">
+                        ${recipe.title}
+                    </a>
+                    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-green-50/50 p-5 rounded-xl border border-green-100">
+                            <h3 class="font-bold text-green-800 text-lg mb-3 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                Ingredients
+                            </h3>
+                            <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanIngredients}</div>
+                        </div>
+                        <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                            <h3 class="font-bold text-blue-800 text-lg mb-3 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                Preparation
+                            </h3>
+                            <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanPrep}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update an existing card's inner content in-place
+        function renderDayCard(dayIndex, recipe, cardEl) {
+            cardEl.innerHTML = buildCardInner(dayIndex, recipe);
+        }
+
+        // Render the full 7-day plan from scratch
         function renderMealPlan(recipes) {
-            mealPlanContainer.innerHTML = ''; // Clear previous plan
+            mealPlanContainer.innerHTML = '';
             mealPlanContainer.classList.remove('hidden');
 
             recipes.forEach((recipe, index) => {
                 const day = weekdays[index];
-                
-                // Clean up the text (removing stray quotes at the very beginning/end if they exist)
-                const cleanIngredients = recipe.ingredients ? recipe.ingredients.replace(/^"|"$/g, '').trim() : "No ingredients listed.";
-                const cleanPrep = recipe.preparation ? recipe.preparation.replace(/^"|"$/g, '').trim() : "No preparation listed.";
-
-                // Check if it's the weekend to give it a slightly different highlight color
                 const isWeekend = (day === 'Saturday' || day === 'Sunday');
                 const borderClass = isWeekend ? 'border-yellow-400' : 'border-green-500';
-                const dayTextClass = isWeekend ? 'text-yellow-600' : 'text-green-600';
 
-                const cardHTML = `
-                    <div class="bg-white rounded-2xl shadow-md overflow-hidden border-l-8 ${borderClass} flex flex-col md:flex-row transform transition duration-300 hover:shadow-lg">
-                        <div class="p-6 w-full">
-                            <div class="uppercase tracking-wider text-sm ${dayTextClass} font-extrabold mb-1">${day}</div>
-                            <a href="${recipe.href}" target="_blank" class="block mt-1 text-2xl leading-tight font-bold text-gray-900 hover:text-green-600 transition-colors duration-200">
-                                ${recipe.title}
-                            </a>
-                            
-                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div class="bg-green-50/50 p-5 rounded-xl border border-green-100">
-                                    <h3 class="font-bold text-green-800 text-lg mb-3 flex items-center">
-                                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                        Ingredients
-                                    </h3>
-                                    <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanIngredients}</div>
-                                </div>
-                                <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-                                    <h3 class="font-bold text-blue-800 text-lg mb-3 flex items-center">
-                                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        Preparation
-                                    </h3>
-                                    <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanPrep}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                mealPlanContainer.insertAdjacentHTML('beforeend', cardHTML);
+                const wrapper = document.createElement('div');
+                wrapper.id = `day-card-${index}`;
+                wrapper.className = `bg-white rounded-2xl shadow-md overflow-hidden border-l-8 ${borderClass} flex flex-col md:flex-row transform transition duration-300 hover:shadow-lg`;
+                wrapper.innerHTML = buildCardInner(index, recipe);
+                mealPlanContainer.appendChild(wrapper);
             });
-            
-            // Scroll down slightly so the user sees the generated plan
+
             mealPlanContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     </script>
