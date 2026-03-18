@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>7-Day Vegan Meal Planner</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Papa Parse for reading the CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        /* Preserves the line breaks from your CSV text */
+        .preserve-lines {
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body class="bg-green-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-green-600 text-white py-8 shadow-md">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-4xl font-extrabold tracking-tight">🌱 7-Day Vegan Meal Planner</h1>
+            <p class="mt-2 text-green-100 text-lg">Your personalized, randomized weekly menu.</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-10 max-w-5xl flex-grow">
+        
+        <!-- Controls -->
+        <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-100 text-center flex flex-col items-center justify-center gap-4">
+            
+            <div id="loadingState" class="flex items-center text-green-600 font-medium">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading recipe database...
+            </div>
+
+            <button id="generateBtn" class="hidden bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 duration-300">
+                🎲 Generate My Weekly Meal Plan
+            </button>
+            <p id="recipeCount" class="text-sm text-gray-500 hidden mt-2"></p>
+        </div>
+
+        <!-- Meal Plan Grid -->
+        <div id="mealPlanContainer" class="mt-10 grid grid-cols-1 gap-8 hidden">
+            <!-- Days will be injected here by JavaScript -->
+        </div>
+
+    </main>
+
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const mealPlanContainer = document.getElementById('mealPlanContainer');
+        const loadingState = document.getElementById('loadingState');
+        const recipeCountText = document.getElementById('recipeCount');
+
+        let recipesData = [];
+        
+        // Updated to 7 days
+        const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        // Automatically fetch the CSV file from the server when the page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            // PapaParse can download the file directly via URL
+            Papa.parse("vegan_recipes.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    // Filter out empty rows
+                    recipesData = results.data.filter(row => row.title && row.title.trim() !== "");
+                    
+                    if (recipesData.length >= 7) {
+                        // Hide loading spinner, show button
+                        loadingState.classList.add('hidden');
+                        generateBtn.classList.remove('hidden');
+                        
+                        // Show how many recipes were loaded
+                        recipeCountText.textContent = `Successfully loaded ${recipesData.length} recipes.`;
+                        recipeCountText.classList.remove('hidden');
+                    } else {
+                        loadingState.innerHTML = `<span class="text-red-500">Error: CSV file not found or doesn't have enough recipes.</span>`;
+                    }
+                },
+                error: function(error) {
+                    loadingState.innerHTML = `<span class="text-red-500">Error loading database. Ensure 'vegan_recipes.csv' is in the same folder.</span>`;
+                    console.error(error);
+                }
+            });
+        });
+
+        // Handle Generate Button Click
+        generateBtn.addEventListener('click', () => {
+            // 1. Shuffle the recipes array (Fisher-Yates shuffle for true randomness)
+            let shuffled = [...recipesData];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+
+            // 2. Pick the first 7 recipes
+            const selectedRecipes = shuffled.slice(0, 7);
+            renderMealPlan(selectedRecipes);
+        });
+
+        // Render the UI
+        function renderMealPlan(recipes) {
+            mealPlanContainer.innerHTML = ''; // Clear previous plan
+            mealPlanContainer.classList.remove('hidden');
+
+            recipes.forEach((recipe, index) => {
+                const day = weekdays[index];
+                
+                // Clean up the text (removing stray quotes at the very beginning/end if they exist)
+                const cleanIngredients = recipe.ingredients ? recipe.ingredients.replace(/^"|"$/g, '').trim() : "No ingredients listed.";
+                const cleanPrep = recipe.preparation ? recipe.preparation.replace(/^"|"$/g, '').trim() : "No preparation listed.";
+
+                // Check if it's the weekend to give it a slightly different highlight color
+                const isWeekend = (day === 'Saturday' || day === 'Sunday');
+                const borderClass = isWeekend ? 'border-yellow-400' : 'border-green-500';
+                const dayTextClass = isWeekend ? 'text-yellow-600' : 'text-green-600';
+
+                const cardHTML = `
+                    <div class="bg-white rounded-2xl shadow-md overflow-hidden border-l-8 ${borderClass} flex flex-col md:flex-row transform transition duration-300 hover:shadow-lg">
+                        <div class="p-6 w-full">
+                            <div class="uppercase tracking-wider text-sm ${dayTextClass} font-extrabold mb-1">${day}</div>
+                            <a href="${recipe.href}" target="_blank" class="block mt-1 text-2xl leading-tight font-bold text-gray-900 hover:text-green-600 transition-colors duration-200">
+                                ${recipe.title}
+                            </a>
+                            
+                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="bg-green-50/50 p-5 rounded-xl border border-green-100">
+                                    <h3 class="font-bold text-green-800 text-lg mb-3 flex items-center">
+                                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                        Ingredients
+                                    </h3>
+                                    <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanIngredients}</div>
+                                </div>
+                                <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                                    <h3 class="font-bold text-blue-800 text-lg mb-3 flex items-center">
+                                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        Preparation
+                                    </h3>
+                                    <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanPrep}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                mealPlanContainer.insertAdjacentHTML('beforeend', cardHTML);
+            });
+            
+            // Scroll down slightly so the user sees the generated plan
+            mealPlanContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    </script>
+</body>
+</html>
