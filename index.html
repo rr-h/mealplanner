@@ -4,116 +4,202 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>7-Day Vegan Meal Planner</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Papa Parse for reading the CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* Preserves the line breaks from your CSV text */
-        .preserve-lines {
-            white-space: pre-wrap;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+        * { font-family: 'Inter', sans-serif; }
+
+        .preserve-lines { white-space: pre-wrap; }
+
+        /* Checkbox grid */
+        .meal-checkbox {
+            width: 22px; height: 22px;
+            cursor: pointer;
+            accent-color: #16a34a;
+            border-radius: 6px;
         }
+        .grid-table { border-collapse: separate; border-spacing: 0; }
+        .grid-table th, .grid-table td { padding: 10px 14px; text-align: center; }
+        .grid-table th { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .grid-table td:first-child { text-align: left; font-weight: 600; font-size: 0.85rem; }
+        .grid-table tr:not(:last-child) td { border-bottom: 1px solid #f0fdf4; }
+        .grid-table tr:hover td { background: #f0fdf4; }
+
         /* Search dropdown */
-        .search-wrapper {
-            position: relative;
-        }
+        .search-wrapper { position: relative; }
         .search-dropdown {
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            right: 0;
-            z-index: 50;
-            background: #fff;
-            border: 1px solid #d1fae5;
-            border-radius: 0.75rem;
+            position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+            z-index: 50; background: #fff;
+            border: 1px solid #d1fae5; border-radius: 0.75rem;
             box-shadow: 0 8px 24px rgba(0,0,0,0.10);
-            overflow: hidden;
-            max-height: 280px;
-            overflow-y: auto;
+            overflow: hidden; max-height: 260px; overflow-y: auto;
         }
         .search-dropdown.hidden { display: none; }
         .search-result-item {
-            padding: 10px 14px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0fdf4;
-            transition: background 0.12s;
+            padding: 9px 13px; cursor: pointer;
+            border-bottom: 1px solid #f0fdf4; transition: background 0.12s;
         }
         .search-result-item:last-child { border-bottom: none; }
-        .search-result-item:hover, .search-result-item:focus {
-            background: #f0fdf4;
-            outline: none;
+        .search-result-item:hover, .search-result-item:focus { background: #f0fdf4; outline: none; }
+        .search-result-title { font-weight: 600; font-size: 0.85rem; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-result-match { font-size: 0.68rem; color: #6b7280; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .search-result-match em { color: #059669; font-style: normal; font-weight: 600; }
+        .search-no-results { padding: 11px 13px; font-size: 0.8rem; color: #9ca3af; }
+
+        /* Meal type section colours */
+        .meal-breakfast { border-left-color: #f59e0b !important; }
+        .meal-mains     { border-left-color: #16a34a !important; }
+        .meal-sides     { border-left-color: #0ea5e9 !important; }
+        .meal-dessert   { border-left-color: #a855f7 !important; }
+
+        .meal-header-breakfast { color: #b45309; background: #fefce8; border-color: #fde68a; }
+        .meal-header-mains     { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+        .meal-header-sides     { color: #0369a1; background: #f0f9ff; border-color: #bae6fd; }
+        .meal-header-dessert   { color: #7e22ce; background: #faf5ff; border-color: #e9d5ff; }
+
+        .badge-breakfast { background: #fef3c7; color: #92400e; }
+        .badge-mains     { background: #dcfce7; color: #14532d; }
+        .badge-sides     { background: #e0f2fe; color: #075985; }
+        .badge-dessert   { background: #f3e8ff; color: #581c87; }
+
+        /* Select-all column buttons */
+        .col-btn {
+            font-size: 0.68rem; padding: 2px 8px;
+            border-radius: 999px; border: 1px solid currentColor;
+            cursor: pointer; transition: all 0.15s; white-space: nowrap;
         }
-        .search-result-title {
-            font-weight: 600;
-            font-size: 0.875rem;
-            color: #1a1a1a;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .col-btn:hover { opacity: 0.8; }
+
+        /* Fade animation */
+        .fade-enter {
+            transition: opacity 0.25s ease, transform 0.25s ease;
         }
-        .search-result-match {
-            font-size: 0.7rem;
-            color: #6b7280;
-            margin-top: 1px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .search-result-match em {
-            color: #059669;
-            font-style: normal;
-            font-weight: 600;
-        }
-        .search-no-results {
-            padding: 12px 14px;
-            font-size: 0.8rem;
-            color: #9ca3af;
-        }
+
+        /* Weekend day highlight */
+        .day-weekend { color: #d97706; }
+        .day-weekday { color: #16a34a; }
     </style>
 </head>
-<body class="bg-green-50 text-gray-800 font-sans min-h-screen flex flex-col">
+<body class="bg-green-50 text-gray-800 min-h-screen flex flex-col">
 
     <!-- Header -->
-    <header class="bg-green-600 text-white py-8 shadow-md">
+    <header class="bg-gradient-to-r from-green-700 to-emerald-600 text-white py-8 shadow-lg">
         <div class="container mx-auto px-4 text-center">
             <h1 class="text-4xl font-extrabold tracking-tight">🌱 7-Day Vegan Meal Planner</h1>
-            <p class="mt-2 text-green-100 text-lg">Your personalized, randomized weekly menu.</p>
+            <p class="mt-2 text-green-100 text-lg">Pick your meals for each day — then let us do the randomising.</p>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-10 max-w-5xl flex-grow">
-        
-        <!-- Controls -->
-        <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-100 text-center flex flex-col items-center justify-center gap-4">
-            
-            <div id="loadingState" class="flex items-center text-green-600 font-medium">
+    <!-- Main -->
+    <main class="container mx-auto px-4 py-10 max-w-6xl flex-grow">
+
+        <!-- Controls card -->
+        <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-100">
+
+            <!-- Loading state -->
+            <div id="loadingState" class="flex items-center justify-center text-green-600 font-medium mb-4">
                 <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Loading recipe database...
+                Loading recipe databases…
             </div>
 
-            <button id="generateBtn" class="hidden bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 duration-300">
-                🎲 Generate My Weekly Meal Plan
-            </button>
-            <p id="recipeCount" class="text-sm text-gray-500 hidden mt-2"></p>
+            <!-- Checkbox grid (hidden until loaded) -->
+            <div id="selectionPanel" class="hidden">
+
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                    <h2 class="text-lg font-bold text-gray-800">📋 Choose your meals for the week</h2>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="selectAll()" class="text-sm px-4 py-1.5 rounded-full bg-green-100 hover:bg-green-200 text-green-800 font-semibold transition">✅ Select All</button>
+                        <button onclick="clearAll()" class="text-sm px-4 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold transition">✕ Clear All</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-green-100">
+                    <table class="grid-table w-full bg-white">
+                        <thead class="bg-green-50 border-b border-green-100">
+                            <tr>
+                                <th class="text-left text-gray-500">Day</th>
+                                <th>
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="text-amber-600">🌅 Breakfast</span>
+                                        <div class="flex gap-1">
+                                            <button class="col-btn text-amber-600 border-amber-300" onclick="selectCol('breakfast')">All</button>
+                                            <button class="col-btn text-gray-400 border-gray-300" onclick="clearCol('breakfast')">None</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="text-green-700">🍽 Mains</span>
+                                        <div class="flex gap-1">
+                                            <button class="col-btn text-green-700 border-green-300" onclick="selectCol('mains')">All</button>
+                                            <button class="col-btn text-gray-400 border-gray-300" onclick="clearCol('mains')">None</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="text-sky-600">🥗 Sides</span>
+                                        <div class="flex gap-1">
+                                            <button class="col-btn text-sky-600 border-sky-300" onclick="selectCol('sides')">All</button>
+                                            <button class="col-btn text-gray-400 border-gray-300" onclick="clearCol('sides')">None</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="text-purple-600">🍮 Dessert</span>
+                                        <div class="flex gap-1">
+                                            <button class="col-btn text-purple-600 border-purple-300" onclick="selectCol('dessert')">All</button>
+                                            <button class="col-btn text-gray-400 border-gray-300" onclick="clearCol('dessert')">None</button>
+                                        </div>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="checkboxGrid">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <p id="recipeCount" class="text-xs text-gray-400 mt-3 text-right"></p>
+
+                <!-- Generate button -->
+                <div class="mt-6 text-center">
+                    <button id="generateBtn" onclick="generatePlan()"
+                        class="bg-green-600 hover:bg-green-700 active:scale-95 text-white text-lg font-bold py-3 px-10 rounded-full shadow-lg transform transition hover:scale-105 duration-300">
+                        🎲 Generate My Meal Plan
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- Meal Plan Grid -->
-        <div id="mealPlanContainer" class="mt-10 grid grid-cols-1 gap-8 hidden">
-            <!-- Days will be injected here by JavaScript -->
+        <!-- Meal Plan Output -->
+        <div id="mealPlanContainer" class="mt-10 hidden flex flex-col gap-8">
+            <!-- Day cards injected here -->
         </div>
 
-        <!-- Shopping List CTA -->
+        <!-- No selection notice -->
+        <div id="noSelectionNotice" class="hidden mt-6 text-center">
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-8 inline-block">
+                <p class="text-amber-700 font-semibold text-lg">⚠️ No meal slots selected</p>
+                <p class="text-amber-600 text-sm mt-1">Please tick at least one checkbox in the grid above, then generate your plan.</p>
+            </div>
+        </div>
+
+        <!-- Shopping list CTA -->
         <div id="shoppingListCta" class="hidden mt-6 text-center">
             <button onclick="buildShoppingList()" class="bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105 duration-300">
                 🛒 Create Shopping List
             </button>
         </div>
 
-        <!-- Shopping List Output -->
+        <!-- Shopping list output -->
         <div id="shoppingListSection" class="hidden mt-10 bg-white rounded-2xl shadow-md border border-green-100 p-8">
             <div class="flex items-center justify-between mb-5">
                 <h2 class="text-2xl font-extrabold text-gray-800">🛒 Weekly Shopping List</h2>
@@ -122,53 +208,122 @@
                     Copy to clipboard
                 </button>
             </div>
-            <p class="text-sm text-gray-500 mb-4">Ingredients grouped by day — copy and paste into any notes app.</p>
+            <p class="text-sm text-gray-500 mb-4">Ingredients grouped by day and meal type.</p>
             <textarea id="shoppingListOutput"
                 class="w-full h-96 font-mono text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-xl p-4 resize-y focus:outline-none focus:ring-2 focus:ring-green-400"
-                readonly
-                spellcheck="false"
-            ></textarea>
+                readonly spellcheck="false"></textarea>
         </div>
 
     </main>
 
     <script>
-        const generateBtn = document.getElementById('generateBtn');
-        const mealPlanContainer = document.getElementById('mealPlanContainer');
-        const loadingState = document.getElementById('loadingState');
-        const recipeCountText = document.getElementById('recipeCount');
+        // ─────────────────────────────────────────────────────────────────
+        // Constants
+        // ─────────────────────────────────────────────────────────────────
+        const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const MEAL_TYPES = ['breakfast', 'mains', 'sides', 'dessert'];
+        const MEAL_LABELS = { breakfast: '🌅 Breakfast', mains: '🍽 Mains', sides: '🥗 Sides', dessert: '🍮 Dessert' };
+        const CSV_SOURCES  = { breakfast: 'breakfasts.csv', mains: 'mains.csv', sides: 'sides.csv', dessert: 'desserts.csv' };
 
-        let recipesData = [];
-        // Tracks the current 7-day plan so per-day swaps know which recipes are already in use
-        let currentPlan = [];
+        // ─────────────────────────────────────────────────────────────────
+        // State
+        // ─────────────────────────────────────────────────────────────────
+        const db = { breakfast: [], mains: [], sides: [], dessert: [] };
 
-        const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        // selection[dayIndex][mealType] = boolean
+        const selection = WEEKDAYS.map(() => ({ breakfast: false, mains: false, sides: false, dessert: false }));
 
-        // Load CSV on page load
+        // currentPlan[dayIndex][mealType] = recipe | null
+        let currentPlan = WEEKDAYS.map(() => ({ breakfast: null, mains: null, sides: null, dessert: null }));
+
+        // ─────────────────────────────────────────────────────────────────
+        // Load all CSVs on page load
+        // ─────────────────────────────────────────────────────────────────
         window.addEventListener('DOMContentLoaded', () => {
-            Papa.parse("vegan_recipes.csv", {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    recipesData = results.data.filter(row => row.title && row.title.trim() !== "");
-                    if (recipesData.length >= 7) {
-                        loadingState.classList.add('hidden');
-                        generateBtn.classList.remove('hidden');
-                        recipeCountText.textContent = `Successfully loaded ${recipesData.length} recipes.`;
-                        recipeCountText.classList.remove('hidden');
-                    } else {
-                        loadingState.innerHTML = `<span class="text-red-500">Error: CSV file not found or doesn't have enough recipes.</span>`;
+            renderCheckboxGrid();
+
+            let loaded = 0;
+            const total = MEAL_TYPES.length;
+
+            MEAL_TYPES.forEach(type => {
+                Papa.parse(CSV_SOURCES[type], {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete(results) {
+                        db[type] = results.data.filter(r => r.title && r.title.trim() !== '');
+                        loaded++;
+                        if (loaded === total) onAllLoaded();
+                    },
+                    error(err) {
+                        document.getElementById('loadingState').innerHTML =
+                            `<span class="text-red-500">Error loading ${CSV_SOURCES[type]}: ${err.message}</span>`;
+                        console.error(err);
                     }
-                },
-                error: function(error) {
-                    loadingState.innerHTML = `<span class="text-red-500">Error loading database. Ensure 'vegan_recipes.csv' is in the same folder.</span>`;
-                    console.error(error);
-                }
+                });
             });
         });
 
-        // Fisher-Yates shuffle helper
+        function onAllLoaded() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('selectionPanel').classList.remove('hidden');
+            document.getElementById('recipeCount').textContent =
+                `Loaded: ${db.breakfast.length} breakfasts · ${db.mains.length} mains · ${db.sides.length} sides · ${db.dessert.length} desserts`;
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Checkbox grid
+        // ─────────────────────────────────────────────────────────────────
+        function renderCheckboxGrid() {
+            const tbody = document.getElementById('checkboxGrid');
+            tbody.innerHTML = WEEKDAYS.map((day, di) => {
+                const isWeekend = day === 'Saturday' || day === 'Sunday';
+                const dayClass = isWeekend ? 'day-weekend' : 'day-weekday';
+                const checkboxes = MEAL_TYPES.map(type => `
+                    <td>
+                        <input
+                            type="checkbox"
+                            class="meal-checkbox"
+                            id="cb-${di}-${type}"
+                            onchange="toggleSelection(${di}, '${type}', this.checked)"
+                        />
+                    </td>`).join('');
+                return `<tr>
+                    <td class="${dayClass}">${day}</td>
+                    ${checkboxes}
+                </tr>`;
+            }).join('');
+        }
+
+        function toggleSelection(dayIndex, mealType, checked) {
+            selection[dayIndex][mealType] = checked;
+        }
+
+        function selectAll() {
+            WEEKDAYS.forEach((_, di) => MEAL_TYPES.forEach(t => setCheckbox(di, t, true)));
+        }
+
+        function clearAll() {
+            WEEKDAYS.forEach((_, di) => MEAL_TYPES.forEach(t => setCheckbox(di, t, false)));
+        }
+
+        function selectCol(mealType) {
+            WEEKDAYS.forEach((_, di) => setCheckbox(di, mealType, true));
+        }
+
+        function clearCol(mealType) {
+            WEEKDAYS.forEach((_, di) => setCheckbox(di, mealType, false));
+        }
+
+        function setCheckbox(dayIndex, mealType, checked) {
+            selection[dayIndex][mealType] = checked;
+            const el = document.getElementById(`cb-${dayIndex}-${mealType}`);
+            if (el) el.checked = checked;
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Fisher-Yates shuffle
+        // ─────────────────────────────────────────────────────────────────
         function shuffle(arr) {
             const a = [...arr];
             for (let i = a.length - 1; i > 0; i--) {
@@ -178,137 +333,215 @@
             return a;
         }
 
-        // Generate a fresh 7-day plan
-        generateBtn.addEventListener('click', () => {
-            currentPlan = shuffle(recipesData).slice(0, 7);
-            renderMealPlan(currentPlan);
-        });
-
-        // Swap only one day's recipe, avoiding duplicates already in the plan
-        function randomizeDay(dayIndex) {
-            const usedTitles = new Set(currentPlan.map(r => r.title));
-            // Remove today's current recipe from the exclusion set so it can be re-picked if pool is tiny
-            usedTitles.delete(currentPlan[dayIndex].title);
-
-            const pool = recipesData.filter(r => !usedTitles.has(r.title));
-            if (pool.length === 0) return; // Shouldn't happen with a large CSV
-
-            const newRecipe = pool[Math.floor(Math.random() * pool.length)];
-            currentPlan[dayIndex] = newRecipe;
-
-            // Animate the card out, swap content, animate back in
-            const card = document.getElementById(`day-card-${dayIndex}`);
-            card.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(-8px)';
-
-            setTimeout(() => {
-                renderDayCard(dayIndex, newRecipe, card);
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            }, 250);
+        function randomFrom(pool) {
+            if (!pool || pool.length === 0) return null;
+            return pool[Math.floor(Math.random() * pool.length)];
         }
 
-        // Build the inner HTML for a single day card
-        function buildCardInner(dayIndex, recipe) {
-            const day = weekdays[dayIndex];
-            const cleanIngredients = recipe.ingredients ? recipe.ingredients.replace(/^"|"$/g, '').trim() : "No ingredients listed.";
-            const cleanPrep = recipe.preparation ? recipe.preparation.replace(/^"|"$/g, '').trim() : "No preparation listed.";
-            const isWeekend = (day === 'Saturday' || day === 'Sunday');
-            const dayTextClass = isWeekend ? 'text-yellow-600' : 'text-green-600';
+        // ─────────────────────────────────────────────────────────────────
+        // Generate plan
+        // ─────────────────────────────────────────────────────────────────
+        function generatePlan() {
+            const noSelectionNotice = document.getElementById('noSelectionNotice');
+            const mealPlanContainer = document.getElementById('mealPlanContainer');
+
+            // Check at least one selection
+            const anySelected = WEEKDAYS.some((_, di) => MEAL_TYPES.some(t => selection[di][t]));
+            if (!anySelected) {
+                noSelectionNotice.classList.remove('hidden');
+                mealPlanContainer.classList.add('hidden');
+                document.getElementById('shoppingListCta').classList.add('hidden');
+                document.getElementById('shoppingListSection').classList.add('hidden');
+                return;
+            }
+            noSelectionNotice.classList.add('hidden');
+
+            // Build the plan
+            currentPlan = WEEKDAYS.map((_, di) => {
+                const day = {};
+                MEAL_TYPES.forEach(type => {
+                    day[type] = selection[di][type] ? randomFrom(db[type]) : null;
+                });
+                return day;
+            });
+
+            renderMealPlan();
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Render full plan
+        // ─────────────────────────────────────────────────────────────────
+        function renderMealPlan() {
+            const container = document.getElementById('mealPlanContainer');
+            container.innerHTML = '';
+            container.classList.remove('hidden');
+
+            let hasSomething = false;
+
+            WEEKDAYS.forEach((day, di) => {
+                const dayMeals = currentPlan[di];
+                const hasAny = MEAL_TYPES.some(t => dayMeals[t] !== null);
+                if (!hasAny) return;
+                hasSomething = true;
+
+                const isWeekend = day === 'Saturday' || day === 'Sunday';
+                const borderCol = isWeekend ? 'border-yellow-400' : 'border-green-500';
+                const dayLabelClass = isWeekend ? 'text-yellow-600' : 'text-green-600';
+
+                const wrapper = document.createElement('div');
+                wrapper.id = `day-card-${di}`;
+                wrapper.className = `bg-white rounded-2xl shadow-md overflow-hidden border-l-8 ${borderCol}`;
+                wrapper.innerHTML = buildDayCardInner(di, day, dayLabelClass, dayMeals);
+                container.appendChild(wrapper);
+            });
+
+            if (hasSomething) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                document.getElementById('shoppingListCta').classList.remove('hidden');
+                document.getElementById('shoppingListSection').classList.add('hidden');
+                document.getElementById('shoppingListOutput').value = '';
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Build a day card's inner HTML
+        // ─────────────────────────────────────────────────────────────────
+        function buildDayCardInner(di, day, dayLabelClass, dayMeals) {
+            const mealSections = MEAL_TYPES
+                .filter(type => dayMeals[type] !== null)
+                .map(type => buildMealSection(di, type, dayMeals[type]))
+                .join('');
 
             return `
-                <div class="p-6 w-full">
-                    <div class="flex items-center justify-between mb-1">
-                        <div class="uppercase tracking-wider text-sm ${dayTextClass} font-extrabold">${day}</div>
-                        <button
-                            onclick="randomizeDay(${dayIndex})"
-                            title="Randomize ${day}"
-                            class="flex items-center gap-1.5 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 active:scale-95 px-3 py-1.5 rounded-full shadow transition-all duration-150"
-                        >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            New suggestion
-                        </button>
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="uppercase tracking-wider text-sm ${dayLabelClass} font-extrabold">${day}</div>
                     </div>
-
-                    <!-- Per-day recipe search -->
-                    <div class="search-wrapper mt-3 mb-4">
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
-                            </span>
-                            <input
-                                id="search-input-${dayIndex}"
-                                type="text"
-                                placeholder="Search recipes or ingredients…"
-                                autocomplete="off"
-                                oninput="handleDaySearch(${dayIndex})"
-                                onfocus="handleDaySearch(${dayIndex})"
-                                class="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white transition"
-                            />
-                        </div>
-                        <div id="search-dropdown-${dayIndex}" class="search-dropdown hidden"></div>
+                    <div class="flex flex-col gap-6">
+                        ${mealSections}
                     </div>
-
-                    <a href="${recipe.href}" target="_blank" class="block mt-1 text-2xl leading-tight font-bold text-gray-900 hover:text-green-600 transition-colors duration-200">
-                        ${recipe.title}
-                    </a>
-                    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-green-50/50 p-5 rounded-xl border border-green-100">
-                            <h3 class="font-bold text-green-800 text-lg mb-3 flex items-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                Ingredients
-                            </h3>
-                            <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanIngredients}</div>
-                        </div>
-                        <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-                            <h3 class="font-bold text-blue-800 text-lg mb-3 flex items-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                Preparation
-                            </h3>
-                            <div class="preserve-lines text-sm text-gray-700 leading-relaxed">${cleanPrep}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
+                </div>`;
         }
 
-        // Update an existing card's inner content in-place
-        function renderDayCard(dayIndex, recipe, cardEl) {
-            cardEl.innerHTML = buildCardInner(dayIndex, recipe);
+        function buildMealSection(di, type, recipe) {
+            if (!recipe) return '';
+            const label = MEAL_LABELS[type];
+            const cleanIngredients = recipe.ingredients ? recipe.ingredients.replace(/^"|"$/g, '').trim() : 'No ingredients listed.';
+            const cleanPrep = recipe.preparation ? recipe.preparation.replace(/^"|"$/g, '').trim() : 'No preparation listed.';
+
+            return `
+                <div class="border border-gray-100 rounded-xl overflow-hidden">
+                    <!-- Meal type header -->
+                    <div class="flex items-center justify-between px-5 py-3 meal-header-${type} border-b border-current/20">
+                        <span class="font-bold text-sm">${label}</span>
+                        <div class="flex items-center gap-2">
+                            <!-- Per-meal search -->
+                            <div class="search-wrapper">
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-2.5 flex items-center pointer-events-none">
+                                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/></svg>
+                                    </span>
+                                    <input
+                                        id="search-${di}-${type}"
+                                        type="text"
+                                        placeholder="Search…"
+                                        autocomplete="off"
+                                        oninput="handleSearch(${di}, '${type}')"
+                                        onfocus="handleSearch(${di}, '${type}')"
+                                        class="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-400 w-48 transition"
+                                    />
+                                </div>
+                                <div id="sdrop-${di}-${type}" class="search-dropdown hidden"></div>
+                            </div>
+                            <!-- Reshuffle button -->
+                            <button
+                                onclick="randomizeMeal(${di}, '${type}')"
+                                title="New ${label}"
+                                class="flex items-center gap-1 text-xs font-semibold text-white bg-green-500 hover:bg-green-600 active:scale-95 px-3 py-1.5 rounded-full shadow transition-all duration-150"
+                            >
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                New
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Recipe content -->
+                    <div class="p-5">
+                        <a href="${recipe.href}" target="_blank"
+                           class="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors duration-200 leading-snug block mb-4">
+                            ${recipe.title}
+                        </a>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-green-50/60 p-4 rounded-xl border border-green-100">
+                                <h3 class="font-bold text-green-800 text-sm mb-2 flex items-center gap-1.5">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                    Ingredients
+                                </h3>
+                                <div class="preserve-lines text-xs text-gray-700 leading-relaxed">${cleanIngredients}</div>
+                            </div>
+                            <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+                                <h3 class="font-bold text-blue-800 text-sm mb-2 flex items-center gap-1.5">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Preparation
+                                </h3>
+                                <div class="preserve-lines text-xs text-gray-700 leading-relaxed">${cleanPrep}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
         }
 
-        // ── Per-day search ───────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
+        // Per-meal randomise
+        // ─────────────────────────────────────────────────────────────────
+        function randomizeMeal(di, type) {
+            const newRecipe = randomFrom(db[type]);
+            if (!newRecipe) return;
+            currentPlan[di][type] = newRecipe;
+            refreshDayCard(di);
+        }
 
-        // Highlight the matched substring inside a string
+        function refreshDayCard(di) {
+            const day = WEEKDAYS[di];
+            const isWeekend = day === 'Saturday' || day === 'Sunday';
+            const dayLabelClass = isWeekend ? 'text-yellow-600' : 'text-green-600';
+            const card = document.getElementById(`day-card-${di}`);
+            if (!card) return;
+
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(-8px)';
+            card.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+
+            setTimeout(() => {
+                card.innerHTML = buildDayCardInner(di, day, dayLabelClass, currentPlan[di]);
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 200);
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        // Search
+        // ─────────────────────────────────────────────────────────────────
         function highlightMatch(text, query) {
             if (!query) return text;
             const idx = text.toLowerCase().indexOf(query.toLowerCase());
             if (idx === -1) return text;
-            return text.slice(0, idx)
-                + '<em>' + text.slice(idx, idx + query.length) + '</em>'
-                + text.slice(idx + query.length);
+            return text.slice(0, idx) + '<em>' + text.slice(idx, idx + query.length) + '</em>' + text.slice(idx + query.length);
         }
 
-        function handleDaySearch(dayIndex) {
-            const input  = document.getElementById(`search-input-${dayIndex}`);
-            const drop   = document.getElementById(`search-dropdown-${dayIndex}`);
-            const query  = input.value.trim();
+        function handleSearch(di, type) {
+            const input = document.getElementById(`search-${di}-${type}`);
+            const drop  = document.getElementById(`sdrop-${di}-${type}`);
+            if (!input || !drop) return;
+            const query = input.value.trim();
 
-            if (query.length === 0) {
-                drop.classList.add('hidden');
-                drop.innerHTML = '';
-                return;
-            }
+            if (!query) { drop.classList.add('hidden'); drop.innerHTML = ''; return; }
 
             const lower = query.toLowerCase();
-            const results = recipesData
-                .filter(r => {
-                    const inTitle = r.title && r.title.toLowerCase().includes(lower);
-                    const inIngr  = r.ingredients && r.ingredients.toLowerCase().includes(lower);
-                    return inTitle || inIngr;
-                })
-                .slice(0, 8);
+            const pool = db[type];
+            const results = pool.filter(r => {
+                return (r.title && r.title.toLowerCase().includes(lower)) ||
+                       (r.ingredients && r.ingredients.toLowerCase().includes(lower));
+            }).slice(0, 8);
 
             if (results.length === 0) {
                 drop.innerHTML = `<div class="search-no-results">No recipes found for "${query}"</div>`;
@@ -316,58 +549,47 @@
                 return;
             }
 
-            drop.innerHTML = results.map((r, i) => {
-                const inIngr = !r.title.toLowerCase().includes(lower) && r.ingredients && r.ingredients.toLowerCase().includes(lower);
-                // Build a short ingredient context snippet when the match came from ingredients
-                let matchSnippet = '';
+            drop.innerHTML = results.map(r => {
+                const inIngr = !(r.title && r.title.toLowerCase().includes(lower)) &&
+                               r.ingredients && r.ingredients.toLowerCase().includes(lower);
+                let snippet = '';
                 if (inIngr) {
-                    const ingredLower = r.ingredients.toLowerCase();
-                    const matchIdx   = ingredLower.indexOf(lower);
-                    const start      = Math.max(0, matchIdx - 20);
-                    const end        = Math.min(r.ingredients.length, matchIdx + lower.length + 30);
-                    const snippet    = (start > 0 ? '…' : '') + r.ingredients.slice(start, end).trim() + (end < r.ingredients.length ? '…' : '');
-                    matchSnippet     = `<div class="search-result-match">Ingredient: ${highlightMatch(snippet, query)}</div>`;
+                    const il  = r.ingredients.toLowerCase();
+                    const mi  = il.indexOf(lower);
+                    const s   = Math.max(0, mi - 20);
+                    const e   = Math.min(r.ingredients.length, mi + lower.length + 30);
+                    const raw = (s > 0 ? '…' : '') + r.ingredients.slice(s, e).trim() + (e < r.ingredients.length ? '…' : '');
+                    snippet   = `<div class="search-result-match">Ingredient: ${highlightMatch(raw, query)}</div>`;
                 }
-                return `
-                    <div
-                        class="search-result-item"
-                        tabindex="0"
-                        onmousedown="selectSearchResult(event, ${dayIndex}, ${recipesData.indexOf(r)})"
-                        onkeydown="if(event.key==='Enter'||event.key===' ') selectSearchResult(event, ${dayIndex}, ${recipesData.indexOf(r)})"
-                    >
-                        <div class="search-result-title">${highlightMatch(r.title, query)}</div>
-                        ${matchSnippet}
-                    </div>`;
+                const idx = pool.indexOf(r);
+                return `<div
+                    class="search-result-item"
+                    tabindex="0"
+                    onmousedown="selectResult(event, ${di}, '${type}', ${idx})"
+                    onkeydown="if(event.key==='Enter'||event.key===' ') selectResult(event, ${di}, '${type}', ${idx})"
+                >
+                    <div class="search-result-title">${highlightMatch(r.title, query)}</div>
+                    ${snippet}
+                </div>`;
             }).join('');
 
             drop.classList.remove('hidden');
         }
 
-        function selectSearchResult(event, dayIndex, recipeIdx) {
+        function selectResult(event, di, type, recipeIdx) {
             event.preventDefault();
-            const newRecipe = recipesData[recipeIdx];
-            currentPlan[dayIndex] = newRecipe;
+            currentPlan[di][type] = db[type][recipeIdx];
 
-            // Clear the search input and close dropdown
-            const input = document.getElementById(`search-input-${dayIndex}`);
-            const drop  = document.getElementById(`search-dropdown-${dayIndex}`);
+            const input = document.getElementById(`search-${di}-${type}`);
+            const drop  = document.getElementById(`sdrop-${di}-${type}`);
             if (input) input.value = '';
             if (drop)  { drop.innerHTML = ''; drop.classList.add('hidden'); }
 
-            // Animate card swap
-            const card = document.getElementById(`day-card-${dayIndex}`);
-            card.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(-8px)';
-            setTimeout(() => {
-                renderDayCard(dayIndex, newRecipe, card);
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            }, 250);
+            refreshDayCard(di);
         }
 
-        // Close any open dropdown when clicking outside a search wrapper
-        document.addEventListener('click', (e) => {
+        // Close search dropdowns on outside click
+        document.addEventListener('click', e => {
             document.querySelectorAll('.search-dropdown').forEach(drop => {
                 if (!drop.closest('.search-wrapper').contains(e.target)) {
                     drop.classList.add('hidden');
@@ -375,90 +597,57 @@
             });
         });
 
-        // Render the full 7-day plan from scratch
-        function renderMealPlan(recipes) {
-            mealPlanContainer.innerHTML = '';
-            mealPlanContainer.classList.remove('hidden');
-
-            recipes.forEach((recipe, index) => {
-                const day = weekdays[index];
-                const isWeekend = (day === 'Saturday' || day === 'Sunday');
-                const borderClass = isWeekend ? 'border-yellow-400' : 'border-green-500';
-
-                const wrapper = document.createElement('div');
-                wrapper.id = `day-card-${index}`;
-                wrapper.className = `bg-white rounded-2xl shadow-md overflow-hidden border-l-8 ${borderClass} flex flex-col md:flex-row transform transition duration-300 hover:shadow-lg`;
-                wrapper.innerHTML = buildCardInner(index, recipe);
-                mealPlanContainer.appendChild(wrapper);
-            });
-
-            mealPlanContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-            // Show the shopping list CTA and reset the list section
-            document.getElementById('shoppingListCta').classList.remove('hidden');
-            document.getElementById('shoppingListSection').classList.add('hidden');
-            document.getElementById('shoppingListOutput').value = '';
-        }
-
-        // Build the markdown shopping list from currentPlan
+        // ─────────────────────────────────────────────────────────────────
+        // Shopping list
+        // ─────────────────────────────────────────────────────────────────
         function buildShoppingList() {
-            if (currentPlan.length === 0) return;
+            const lines = ['# 🛒 Weekly Shopping List\n'];
 
-            const lines = [];
-            lines.push('# 🛒 Weekly Shopping List\n');
+            WEEKDAYS.forEach((day, di) => {
+                const dayMeals = currentPlan[di];
+                const hasMeals = MEAL_TYPES.some(t => dayMeals[t] !== null);
+                if (!hasMeals) return;
 
-            currentPlan.forEach((recipe, index) => {
-                const day = weekdays[index];
-                lines.push(`## ${day}: ${recipe.title}\n`);
+                lines.push(`## ${day}\n`);
 
-                const rawIngredients = recipe.ingredients
-                    ? recipe.ingredients.replace(/^"|"$/g, '').trim()
-                    : '';
+                MEAL_TYPES.forEach(type => {
+                    const recipe = dayMeals[type];
+                    if (!recipe) return;
 
-                if (rawIngredients) {
-                    // Split on newlines, filter blank lines, output as tickbox items
-                    const items = rawIngredients
-                        .split('\n')
-                        .map(l => l.trim())
-                        .filter(l => l.length > 0);
+                    lines.push(`### ${MEAL_LABELS[type]}: ${recipe.title}\n`);
 
-                    items.forEach(item => lines.push(`- [ ] ${item}`));
-                } else {
-                    lines.push('- [ ] (no ingredients listed)');
-                }
-
-                lines.push(''); // blank line between days
+                    const rawIngr = recipe.ingredients ? recipe.ingredients.replace(/^"|"$/g, '').trim() : '';
+                    if (rawIngr) {
+                        rawIngr.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+                            .forEach(item => lines.push(`- [ ] ${item}`));
+                    } else {
+                        lines.push('- [ ] (no ingredients listed)');
+                    }
+                    lines.push('');
+                });
             });
 
-            const markdown = lines.join('\n');
             const output = document.getElementById('shoppingListOutput');
-            output.value = markdown;
+            output.value = lines.join('\n');
 
             const section = document.getElementById('shoppingListSection');
             section.classList.remove('hidden');
             section.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        // Copy the shopping list textarea to clipboard
+        // Copy to clipboard
         async function copyShoppingList() {
             const output = document.getElementById('shoppingListOutput');
-            const btn = document.getElementById('copyBtn');
+            const btn    = document.getElementById('copyBtn');
             try {
                 await navigator.clipboard.writeText(output.value);
-                btn.innerHTML = `
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Copied!
-                `;
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!`;
                 btn.classList.add('bg-green-300');
                 setTimeout(() => {
-                    btn.innerHTML = `
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                        Copy to clipboard
-                    `;
+                    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy to clipboard`;
                     btn.classList.remove('bg-green-300');
                 }, 2000);
             } catch {
-                // Fallback for older browsers
                 output.select();
                 document.execCommand('copy');
             }
